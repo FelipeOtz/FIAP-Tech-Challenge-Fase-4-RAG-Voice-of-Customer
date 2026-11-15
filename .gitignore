@@ -1,0 +1,11 @@
+.venv/
+.env
+__pycache__/
+.DS_Store
+
+# Somente locais
+edital_tc4.pdf
+CLAUDE.md
+
+# Índice do Chroma, gerado por src/base_conhecimento.py
+chroma_db/
