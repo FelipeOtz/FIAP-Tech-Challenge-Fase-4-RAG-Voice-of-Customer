@@ -22,18 +22,24 @@ TOP_K = 10
 TOP_K_FREQUENCIA = 80
 MAX_EVIDENCIAS_CONTEXTO = 40
 
-PADRAO_FREQUENCIA = re.compile(r"frequen|mais comu|principa|recorrent|padr[õo]es|mais relatad|mais elogia|aparecem", re.I)
+# "mais" seguido de verbo ("mais reclamam", "mais elogiam") também indica pergunta de frequência.
+PADRAO_FREQUENCIA = re.compile(r"frequen|mais comu|principa|recorrent|padr[õo]es|mais relatad|mais \w+(am|em)\b|aparecem", re.I)
 PADRAO_NEGATIVO = re.compile(r"insatisf|reclama|problema|nota baixa|negativ|ruim|defeito|atras", re.I)
-PADRAO_POSITIVO = re.compile(r"elogi|positiv|(?<!in)satisfeit|valoriz|gostam|nota alta|recomend", re.I)
+PADRAO_POSITIVO = re.compile(r"elogi|positiv|(?<!in)satisfeit|valoriz|gostam|nota alta|recomend|falam? bem", re.I)
 # Palavras de pergunta e de meta-linguagem ("relatados pelos clientes nas avaliações") afastam o embedding
 # do texto das avaliações: na calibração, "principais problemas relatados..." ficou a 0,393 e "problemas" a 0,266.
 PADRAO_META = re.compile(
-    r"\b(qual|quais|que|o que|são|é|os|as|o|a|principais|mais|maior|frequ[eê]ncia|aparecem|com|"
+    r"\b(falam? bem|falam? mal|pessoal|gente|pessoas|falam?|acham?|tem|"
+    r"qual|quais|que|o que|são|é|os|as|o|a|principais|mais|maior|frequ[eê]ncia|aparecem|com|"
     r"relatad[oa]s?|relatam|dizem|falam|pelos|dos|das|de|do|da|em|nas|nos|suas?|seus?|clientes?|consumidores|"
     r"avalia[cç][õo]es|podem|ser|identificad[oa]s|existem|há|padr[õo]es|recorrentes|sustentam|"
     r"relacionad[oa]s|à|ao|aspectos|outros|isso|algum|sobre|reclama[cç][õo]es|reclamam|elogiam|elogiad[oa]s)\b",
     re.I,
 )
+
+FILTRO_NEGATIVO = {"review_score": {"$lte": 2}}
+FILTRO_POSITIVO = {"review_score": {"$gte": 4}}
+CONSULTA_POR_FILTRO = {str(FILTRO_NEGATIVO): "reclamação problema", str(FILTRO_POSITIVO): "elogio ótimo"}
 
 RESPOSTA_SEM_EVIDENCIA = (
     "Não encontrei avaliações suficientemente relacionadas a essa pergunta na base. "
@@ -56,10 +62,8 @@ def carregar_colecao() -> chromadb.Collection:
 
 
 def transformar_pergunta(pergunta: str) -> str:
-    """Remove a meta-linguagem para a consulta se parecer com o texto de uma avaliação."""
-    consulta = " ".join(PADRAO_META.sub(" ", re.sub(r"[?!.,;]", " ", pergunta)).split())
-    # Pergunta feita só de meta-linguagem ("Quais aspectos são mais elogiados?") fica sem nada: usa a original.
-    return consulta or pergunta
+    """Remove a meta-linguagem para a consulta se parecer com o texto de uma avaliação. Pode devolver vazio."""
+    return " ".join(PADRAO_META.sub(" ", re.sub(r"[?!.,;]", " ", pergunta)).split())
 
 
 def analisar_pergunta(pergunta: str) -> dict:
@@ -69,12 +73,15 @@ def analisar_pergunta(pergunta: str) -> dict:
     filtro = None
     # Só filtra quando o sentido é inequívoco; pergunta mista busca em todas as notas.
     if negativa and not positiva:
-        filtro = {"review_score": {"$lte": 2}}
+        filtro = FILTRO_NEGATIVO
     elif positiva and not negativa:
-        filtro = {"review_score": {"$gte": 4}}
+        filtro = FILTRO_POSITIVO
     frequencia = bool(PADRAO_FREQUENCIA.search(pergunta))
+    # Pergunta feita só de meta-linguagem ("Do que os clientes mais reclamam?") fica sem consulta.
+    # Com filtro de nota, quem define a relevância é o filtro, então basta uma consulta neutra do sentimento.
+    consulta = transformar_pergunta(pergunta) or CONSULTA_POR_FILTRO.get(str(filtro), pergunta)
     return {
-        "consulta": transformar_pergunta(pergunta),
+        "consulta": consulta,
         "filtro": filtro,
         "frequencia": frequencia,
         "top_k": TOP_K_FREQUENCIA if frequencia else TOP_K,
