@@ -33,6 +33,12 @@ class TestPipeline(unittest.TestCase):
         self.assertIsNone(analisar_pergunta("Elogios e reclamações sobre entrega")["filtro"])
         self.assertTrue(analisar_pergunta("Quais reclamações aparecem com maior frequência?")["frequencia"])
 
+    def test_filtro_manual_substitui_automatico(self) -> None:
+        self.assertIsNone(analisar_pergunta("Clientes insatisfeitos", "Todas as notas")["filtro"])
+        analise = analisar_pergunta("Como é a entrega?", "Notas 4 e 5")
+        self.assertEqual(analise["filtro"], {"review_score": {"$gte": 4}})
+        self.assertEqual(analise["filtro_descricao"], "notas 4 e 5")
+
     def test_deduplicar_conta_ocorrencias(self) -> None:
         evidencias = deduplicar([avaliacao("a", "Muito bom"), avaliacao("b", "muito bom!"), avaliacao("c", "Atrasou")])
         self.assertEqual([e["ocorrencias"] for e in evidencias], [2, 1])

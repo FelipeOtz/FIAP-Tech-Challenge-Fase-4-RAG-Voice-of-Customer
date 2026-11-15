@@ -40,6 +40,9 @@ PADRAO_META = re.compile(
 FILTRO_NEGATIVO = {"review_score": {"$lte": 2}}
 FILTRO_POSITIVO = {"review_score": {"$gte": 4}}
 CONSULTA_POR_FILTRO = {str(FILTRO_NEGATIVO): "reclamação problema", str(FILTRO_POSITIVO): "elogio ótimo"}
+FILTRO_AUTOMATICO = "Automático"
+OPCOES_FILTRO = {FILTRO_AUTOMATICO: None, "Notas 1 e 2": FILTRO_NEGATIVO, "Notas 4 e 5": FILTRO_POSITIVO, "Todas as notas": None}
+DESCRICAO_FILTRO = {str(FILTRO_NEGATIVO): "notas 1 e 2", str(FILTRO_POSITIVO): "notas 4 e 5", str(None): "todas as notas"}
 
 RESPOSTA_SEM_EVIDENCIA = (
     "Não encontrei avaliações suficientemente relacionadas a essa pergunta na base. "
@@ -66,8 +69,11 @@ def transformar_pergunta(pergunta: str) -> str:
     return " ".join(PADRAO_META.sub(" ", re.sub(r"[?!.,;]", " ", pergunta)).split())
 
 
-def analisar_pergunta(pergunta: str) -> dict:
-    """Decide consulta, filtro de nota e tamanho da amostra a partir de palavras da pergunta."""
+def analisar_pergunta(pergunta: str, filtro_manual: str = FILTRO_AUTOMATICO) -> dict:
+    """Decide consulta, filtro de nota e tamanho da amostra a partir de palavras da pergunta.
+
+    filtro_manual é um rótulo de OPCOES_FILTRO; fora do automático, substitui a decisão por palavras-chave.
+    """
     negativa = bool(PADRAO_NEGATIVO.search(pergunta))
     positiva = bool(PADRAO_POSITIVO.search(pergunta))
     filtro = None
@@ -76,6 +82,8 @@ def analisar_pergunta(pergunta: str) -> dict:
         filtro = FILTRO_NEGATIVO
     elif positiva and not negativa:
         filtro = FILTRO_POSITIVO
+    if filtro_manual != FILTRO_AUTOMATICO:
+        filtro = OPCOES_FILTRO[filtro_manual]
     frequencia = bool(PADRAO_FREQUENCIA.search(pergunta))
     # Pergunta feita só de meta-linguagem ("Do que os clientes mais reclamam?") fica sem consulta.
     # Com filtro de nota, quem define a relevância é o filtro, então basta uma consulta neutra do sentimento.
@@ -83,6 +91,7 @@ def analisar_pergunta(pergunta: str) -> dict:
     return {
         "consulta": consulta,
         "filtro": filtro,
+        "filtro_descricao": DESCRICAO_FILTRO[str(filtro)],
         "frequencia": frequencia,
         "top_k": TOP_K_FREQUENCIA if frequencia else TOP_K,
     }
@@ -140,19 +149,23 @@ def resumir_temas(temas: list[Tema], evidencias: list[dict]) -> str:
             linhas.append((soma, tema.tema, tema.resumo, numeros))
     linhas.sort(key=lambda linha: linha[0], reverse=True)
     total = sum(e["ocorrencias"] for e in evidencias)
-    texto = [f"Temas recorrentes na amostra de {total} avaliações recuperadas (não é uma contagem sobre a base inteira):"]
+    texto = [
+        f"Temas recorrentes nas {total} avaliações usadas como evidência ({len(evidencias)} textos distintos). "
+        "É uma amostra recuperada, não uma contagem sobre a base inteira:"
+    ]
     for soma, nome, resumo, numeros in linhas:
         citacoes = ", ".join(f"E{n}" for n in numeros)
         texto.append(f"- {nome} ({soma} avaliações): {resumo} [{citacoes}]")
     return "\n".join(texto)
 
 
-def responder(pergunta: str) -> dict:
+def responder(pergunta: str, filtro_manual: str = FILTRO_AUTOMATICO) -> dict:
     """Executa o pipeline e devolve a resposta com as evidências usadas e os parâmetros da busca."""
-    analise = analisar_pergunta(pergunta)
+    analise = analisar_pergunta(pergunta, filtro_manual)
     recuperadas = buscar(analise["consulta"], analise["top_k"], analise["filtro"])
     relevantes = [a for a in recuperadas if a["distancia"] <= LIMIAR_DISTANCIA]
     evidencias = deduplicar(relevantes)[:MAX_EVIDENCIAS_CONTEXTO]
+    analise.update(recuperadas=len(recuperadas), dentro_do_limiar=len(relevantes))
     log.info(
         "consulta=%r filtro=%s frequencia=%s recuperadas=%s dentro_do_limiar=%s evidencias=%s",
         analise["consulta"], analise["filtro"], analise["frequencia"], len(recuperadas), len(relevantes), len(evidencias),
