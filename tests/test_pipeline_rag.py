@@ -20,9 +20,12 @@ class TestPipeline(unittest.TestCase):
             "problemas",
         )
 
-    def test_transformar_sem_sobra_usa_original(self) -> None:
-        pergunta = "Quais aspectos são mais elogiados?"
-        self.assertNotEqual(transformar_pergunta(pergunta), "")
+    def test_consulta_vazia_usa_sentimento_ou_original(self) -> None:
+        analise = analisar_pergunta("Do que os clientes mais reclamam?")
+        self.assertEqual(analise["consulta"], "reclamação problema")
+        self.assertTrue(analise["frequencia"])
+        pergunta = "Quais são os que mais existem?"
+        self.assertEqual(analisar_pergunta(pergunta)["consulta"], pergunta)
 
     def test_filtro_de_nota(self) -> None:
         self.assertEqual(analisar_pergunta("Clientes insatisfeitos")["filtro"], {"review_score": {"$lte": 2}})
