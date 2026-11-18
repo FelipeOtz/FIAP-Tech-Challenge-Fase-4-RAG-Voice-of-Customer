@@ -29,6 +29,7 @@ class TestPipeline(unittest.TestCase):
 
     def test_filtro_de_nota(self) -> None:
         self.assertEqual(analisar_pergunta("Clientes insatisfeitos")["filtro"], {"review_score": {"$lte": 2}})
+        self.assertEqual(analisar_pergunta("Que queixas aparecem sobre os Correios?")["filtro"], {"review_score": {"$lte": 2}})
         self.assertEqual(analisar_pergunta("O que elogiam?")["filtro"], {"review_score": {"$gte": 4}})
         self.assertIsNone(analisar_pergunta("Elogios e reclamações sobre entrega")["filtro"])
         self.assertTrue(analisar_pergunta("Quais reclamações aparecem com maior frequência?")["frequencia"])
@@ -52,7 +53,7 @@ class TestPipeline(unittest.TestCase):
         ]
         texto = resumir_temas(temas, evidencias)
         # Atraso soma 2 (E1 repetida 2x) e fica antes; E2 já usada não conta de novo; E99 não existe.
-        self.assertLess(texto.index("Atraso (2 avaliações)"), texto.index("Não entrega (1 avaliações)"))
+        self.assertLess(texto.index("Atraso (2 avaliações)"), texto.index("Não entrega (1 avaliação)"))
         self.assertIn("[E1]", texto)
         self.assertNotIn("E99", texto)
 

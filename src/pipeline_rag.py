@@ -24,7 +24,7 @@ MAX_EVIDENCIAS_CONTEXTO = 40
 
 # "mais" seguido de verbo ("mais reclamam", "mais elogiam") também indica pergunta de frequência.
 PADRAO_FREQUENCIA = re.compile(r"frequen|mais comu|principa|recorrent|padr[õo]es|mais relatad|mais \w+(am|em)\b|aparecem", re.I)
-PADRAO_NEGATIVO = re.compile(r"insatisf|reclama|problema|nota baixa|negativ|ruim|defeito|atras", re.I)
+PADRAO_NEGATIVO = re.compile(r"insatisf|reclama|queixa|problema|nota baixa|negativ|ruim|defeito|atras", re.I)
 PADRAO_POSITIVO = re.compile(r"elogi|positiv|(?<!in)satisfeit|valoriz|gostam|nota alta|recomend|falam? bem", re.I)
 # Palavras de pergunta e de meta-linguagem ("relatados pelos clientes nas avaliações") afastam o embedding
 # do texto das avaliações: na calibração, "principais problemas relatados..." ficou a 0,393 e "problemas" a 0,266.
@@ -155,7 +155,7 @@ def resumir_temas(temas: list[Tema], evidencias: list[dict]) -> str:
     ]
     for soma, nome, resumo, numeros in linhas:
         citacoes = ", ".join(f"E{n}" for n in numeros)
-        texto.append(f"- {nome} ({soma} avaliações): {resumo} [{citacoes}]")
+        texto.append(f"- {nome} ({soma} {'avaliação' if soma == 1 else 'avaliações'}): {resumo} [{citacoes}]")
     return "\n".join(texto)
 
 

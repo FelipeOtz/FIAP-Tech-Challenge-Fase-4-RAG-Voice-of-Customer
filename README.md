@@ -6,8 +6,15 @@ Projeto integrador da Fase 4 da pós-graduação. Transforma as avaliações esc
 
 ---
 
+## Vídeo de Apresentação
+
+Link: _a preencher_
+
+---
+
 ## Sumário
 
+- [Vídeo de Apresentação](#vídeo-de-apresentação)
 - [Contexto do Problema](#contexto-do-problema)
 - [Objetivo da Solução](#objetivo-da-solução)
 - [Fontes de Dados](#fontes-de-dados)
@@ -48,9 +55,9 @@ Os cinco arquivos em `data/raw/` vêm do [Kaggle](https://www.kaggle.com/dataset
 | Arquivo | Tamanho | Uso |
 |---|---|---|
 | `olist_order_reviews_dataset.csv` | 14,5 MB | Fonte da base de conhecimento |
-| `olist_orders_dataset.csv` | 17,7 MB | Não usado; os joins para metadados de entrega ficaram nas evoluções futuras |
-| `olist_order_items_dataset.csv` | 15,4 MB | Não usado |
-| `olist_products_dataset.csv` | 2,4 MB | Não usado |
+| `olist_orders_dataset.csv` | 17,7 MB | Usado para medir a viabilidade dos metadados de categoria e entrega (ver evoluções futuras) |
+| `olist_order_items_dataset.csv` | 15,4 MB | Usado para medir a viabilidade dos metadados de categoria e entrega (ver evoluções futuras) |
+| `olist_products_dataset.csv` | 2,4 MB | Usado para medir a viabilidade dos metadados de categoria e entrega (ver evoluções futuras) |
 | `product_category_name_translation.csv` | 4 KB | Não usado |
 
 ---
@@ -265,7 +272,7 @@ Consulta `insatisfeitos`, filtro notas 1 e 2, modo frequência, 61 de 80 dentro 
 > - Insatisfação geral e atendimento ruim (25 avaliações): vários clientes expressam frustração generalizada, má qualidade da loja, falta de compromisso e atendimento péssimo.
 > - Problemas com a entrega (15 avaliações): há reclamações sobre atrasos, demora, falta de entrega ou itens faltantes e incorretos.
 > - Produtos com defeito ou má qualidade (9 avaliações): os clientes relatam produtos com defeitos, mal acabados ou de baixa qualidade.
-> - Divergência de modelo (1 avaliações): um cliente relata que o produto recebido não corresponde ao modelo esperado.
+> - Divergência de modelo (1 avaliação): um cliente relata que o produto recebido não corresponde ao modelo esperado.
 
 Cada tema lista os números das evidências citadas. Entre elas: Péssimo (5 repetições), Não recebido (3), Produto com defeito. Produto com defeito desejo a troca, AINDA NÃO RECEBI A MERCADORIA.
 
@@ -274,16 +281,16 @@ Consulta `conclusão problemas prazo entrega`, filtro notas 1 e 2, modo frequên
 
 > Temas recorrentes nas 14 avaliações usadas como evidência (11 textos distintos):
 > - Atrasos na entrega (13 avaliações): os clientes relatam que as entregas demoram, passam do prazo ou chegam depois do combinado.
-> - Prazo longo (1 avaliações): há reclamações de que a loja possui um prazo de entrega muito longo.
+> - Prazo longo (1 avaliação): há reclamações de que a loja possui um prazo de entrega muito longo.
 
 Evidências: falta de comprometimento com o prazo · Entrga depois do prazo · prazo longo de entrega e não chegou no prazo · Passou do prazo · Ñ compriu seu prazo de entrega · Muita demora na entrega (3 repetições), entre outras.
 
-**4. Busca por experiências positivas: "Quais aspectos da experiência de compra são mais elogiados pelos clientes?"**
-Consulta `experiência compra`, filtro notas 4 e 5, 10 de 10 dentro do limiar.
+**4. Busca por experiências positivas: "Os clientes elogiam a rapidez da entrega?"**
+Consulta `rapidez entrega`, filtro notas 4 e 5, 10 de 10 dentro do limiar, 4 textos distintos. Execução de 16/11/2026.
 
-> Com base nas avaliações fornecidas, os clientes elogiam de forma geral a experiência de compra, destacando-a como excelente [E1], [E6], ótima [E4], [E7] e positiva [E2]. Especificamente, a entrega foi mencionada como um aspecto positivo da experiência [E2], e há registro de satisfação geral com a compra [E5], além da perspectiva de realizar novas compras no futuro [E3].
+> Sim, os clientes elogiam explicitamente a rapidez da entrega [E1], [E2], [E3], [E4]. As avaliações destacam a agilidade no recebimento dos produtos com notas altas (4 e 5) [E1], [E2], [E3], [E4].
 
-A resposta é genérica porque as avaliações mais próximas de "experiência compra" são elogios genéricos, como "Ótima compra". Perguntas sobre um aspecto específico, como "Clientes elogiam a rapidez da entrega?", recuperam evidências mais informativas.
+Evidências: [E1] rápida entrega (nota 5, distância 0,014) · [E2] rapidez na entrega (nota 4, 0,021) · [E3] entrega rapida (nota 5, 5 repetições, 0,021) · [E4] entrega rápida (nota 5, 3 repetições, 0,021).
 
 **5. Fora do escopo, bloqueada pelo limiar: "Qual é a capital da França?"**
 Consulta `capital França`, 0 de 10 dentro do limiar. O Gemini não é chamado.
@@ -344,7 +351,7 @@ A transformação da pergunta funciona por lista de palavras. Ela remove a meta-
 | 1, depois do ajuste (as mesmas 5, já usadas no ajuste) | idem | 4 boas, 1 ruim |
 | 2, inéditas, sem novo ajuste | 5 novas | 1 boa, 3 parciais, 1 fraca |
 
-"Do que os clientes mais reclamam?" fica sem conteúdo depois da limpeza, e a consulta neutra "reclamação problema" deixa passar só 2 de 80 avaliações. "Do que o pessoal mais gosta?" vira "gosta" e recupera "Gosto" e "gostei", genéricos; além disso, "mais gosta", no singular, não ativa o modo frequência. "Os compradores ficaram felizes com a qualidade?" recupera satisfação com a compra em geral. "Alguém teve dificuldade para trocar ou devolver um produto?" recupera defeitos, com uma única menção a troca entre as três primeiras avaliações. "Que tipo de queixa aparece sobre os Correios?" fica sem filtro de nota, porque "queixa" não está na lista, e mistura elogios. Em "Quais avaliações sustentam a conclusão...", a palavra "conclusão" sobra na consulta e só 14 de 80 avaliações passam no limiar.
+"Do que os clientes mais reclamam?" fica sem conteúdo depois da limpeza, e a consulta neutra "reclamação problema" deixa passar só 2 de 80 avaliações. "Do que o pessoal mais gosta?" vira "gosta" e recupera "Gosto" e "gostei", genéricos; além disso, "mais gosta", no singular, não ativa o modo frequência. "Os compradores ficaram felizes com a qualidade?" recupera satisfação com a compra em geral. "Alguém teve dificuldade para trocar ou devolver um produto?" recupera defeitos, com uma única menção a troca entre as três primeiras avaliações. "Que tipo de queixa aparece sobre os Correios?" ficava sem filtro de nota e misturava elogios; depois que "queixa" entrou nas palavras de reclamação, recebe o filtro de notas 1 e 2, mas só 5 de 10 avaliações passam no limiar e as três primeiras não citam os Correios. Em "Quais avaliações sustentam a conclusão...", a palavra "conclusão" sobra na consulta e só 14 de 80 avaliações passam no limiar.
 
 Perguntas amplas recuperam poucas avaliações. "Quais são os principais problemas relatados pelos clientes?" deixa passar 15 de 80, porque "problemas" é uma consulta genérica. Os temas saem coerentes, mas a amostra é pequena. Perguntas sobre um tema específico funcionam melhor: "Quais reclamações relacionadas à entrega aparecem com maior frequência?" deixa passar 57 de 80.
 
