@@ -4,13 +4,19 @@ Ferramenta manual. Mede a distância cosseno da avaliação mais próxima (com o
 que o pipeline aplicaria) para perguntas dentro e fora do escopo, e quantas avaliações do top-k
 passam em cada limiar candidato. Não chama o LLM.
 
-    python -m scripts.calibrar_limiar
+    python -m scripts.calibrar_limiar          # transformação por regras
+    python -m scripts.calibrar_limiar --llm    # reescrita pelo Gemini (1 chamada por pergunta)
 """
 
 import logging
+import sys
+import time
 
-from src.pipeline_rag import analisar_pergunta, buscar
+from src.pipeline_rag import analisar_com_llm, analisar_pergunta, buscar
 
+USAR_LLM = "--llm" in sys.argv
+# O nível gratuito aceita 15 requisições por minuto; sem espaçar, parte das perguntas cai nas regras.
+ESPERA_ENTRE_CHAMADAS_S = 4.5
 LIMIARES_CANDIDATOS = (0.25, 0.30, 0.35, 0.40, 0.45)
 
 DENTRO_DO_ESCOPO = (
@@ -52,7 +58,9 @@ log = logging.getLogger(__name__)
 def medir(perguntas: tuple[str, ...]) -> list[float]:
     distancias = []
     for pergunta in perguntas:
-        analise = analisar_pergunta(pergunta)
+        if USAR_LLM:
+            time.sleep(ESPERA_ENTRE_CHAMADAS_S)
+        analise = analisar_com_llm(pergunta) if USAR_LLM else analisar_pergunta(pergunta)
         resultados = buscar(analise["consulta"], analise["top_k"], analise["filtro"])
         valores = [r["distancia"] for r in resultados]
         passam = " ".join(f"{sum(v <= l for v in valores):>2}" for l in LIMIARES_CANDIDATOS)

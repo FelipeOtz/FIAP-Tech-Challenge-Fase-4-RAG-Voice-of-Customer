@@ -13,7 +13,7 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 
 from src.base_conhecimento import MODELO_EMBEDDINGS, NOME_COLECAO, PASTA_CHROMA
-from src.llm import Tema, gerar_resposta, gerar_temas
+from src.llm import Tema, chave_configurada, gerar_resposta, gerar_temas, reescrever_pergunta
 
 # Distância cosseno máxima para uma avaliação contar como evidência. Calibrado em scripts/calibrar_limiar.py.
 LIMIAR_DISTANCIA = 0.35
@@ -42,6 +42,7 @@ FILTRO_POSITIVO = {"review_score": {"$gte": 4}}
 CONSULTA_POR_FILTRO = {str(FILTRO_NEGATIVO): "reclamação problema", str(FILTRO_POSITIVO): "elogio ótimo"}
 FILTRO_AUTOMATICO = "Automático"
 OPCOES_FILTRO = {FILTRO_AUTOMATICO: None, "Notas 1 e 2": FILTRO_NEGATIVO, "Notas 4 e 5": FILTRO_POSITIVO, "Todas as notas": None}
+FILTRO_POR_ROTULO = {"negativo": FILTRO_NEGATIVO, "positivo": FILTRO_POSITIVO, "todas": None}
 DESCRICAO_FILTRO = {str(FILTRO_NEGATIVO): "notas 1 e 2", str(FILTRO_POSITIVO): "notas 4 e 5", str(None): "todas as notas"}
 
 RESPOSTA_SEM_EVIDENCIA = (
@@ -94,6 +95,28 @@ def analisar_pergunta(pergunta: str, filtro_manual: str = FILTRO_AUTOMATICO) -> 
         "filtro_descricao": DESCRICAO_FILTRO[str(filtro)],
         "frequencia": frequencia,
         "top_k": TOP_K_FREQUENCIA if frequencia else TOP_K,
+        "origem": "regras",
+    }
+
+
+def analisar_com_llm(pergunta: str, filtro_manual: str = FILTRO_AUTOMATICO) -> dict:
+    """Usa o Gemini para gerar consulta, filtro e modo; sem chave ou em qualquer falha, fica com as regras."""
+    regras = analisar_pergunta(pergunta, filtro_manual)
+    if not chave_configurada():
+        return regras
+    try:
+        reescrita = reescrever_pergunta(pergunta)
+    except Exception as erro:
+        log.warning("Reescrita da pergunta falhou, usando regras: %s", str(erro)[:120])
+        return regras
+    filtro = FILTRO_POR_ROTULO[reescrita.filtro] if filtro_manual == FILTRO_AUTOMATICO else OPCOES_FILTRO[filtro_manual]
+    return {
+        "consulta": reescrita.consulta.strip() or regras["consulta"],
+        "filtro": filtro,
+        "filtro_descricao": DESCRICAO_FILTRO[str(filtro)],
+        "frequencia": reescrita.frequencia,
+        "top_k": TOP_K_FREQUENCIA if reescrita.frequencia else TOP_K,
+        "origem": "llm",
     }
 
 
@@ -161,7 +184,7 @@ def resumir_temas(temas: list[Tema], evidencias: list[dict]) -> str:
 
 def responder(pergunta: str, filtro_manual: str = FILTRO_AUTOMATICO) -> dict:
     """Executa o pipeline e devolve a resposta com as evidências usadas e os parâmetros da busca."""
-    analise = analisar_pergunta(pergunta, filtro_manual)
+    analise = analisar_com_llm(pergunta, filtro_manual)
     recuperadas = buscar(analise["consulta"], analise["top_k"], analise["filtro"])
     relevantes = [a for a in recuperadas if a["distancia"] <= LIMIAR_DISTANCIA]
     evidencias = deduplicar(relevantes)[:MAX_EVIDENCIAS_CONTEXTO]

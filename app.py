@@ -58,8 +58,9 @@ if enviar and pergunta.strip():
 
     origem = "automático" if filtro_manual == FILTRO_AUTOMATICO else "escolhido manualmente"
     modo = "frequência (amostra maior, agrupada por tema)" if saida["frequencia"] else "pergunta direta"
+    analise = "Gemini" if saida["origem"] == "llm" else "regras"
     st.info(
-        f"Filtro de nota: **{saida['filtro_descricao']}** ({origem}) · Consulta usada na busca: "
+        f"Filtro de nota: **{saida['filtro_descricao']}** ({origem}) · Consulta usada na busca ({analise}): "
         f"*{saida['consulta']}* · Modo: {modo} · {saida['dentro_do_limiar']} de {saida['recuperadas']} "
         f"avaliações recuperadas dentro do limiar de distância {LIMIAR_DISTANCIA}"
     )
