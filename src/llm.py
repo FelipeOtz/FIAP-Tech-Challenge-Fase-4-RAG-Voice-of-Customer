@@ -6,6 +6,7 @@ import sys
 import time
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from google import genai
@@ -33,10 +34,26 @@ Para cada tema devolva um nome curto, um resumo de uma frase baseado só nas evi
 (sem citações no resumo) e a lista dos números das evidências (por exemplo, 3 para [E3]). Não conte nem some nada."""
 
 
+INSTRUCAO_REESCRITA = """Você converte perguntas de analistas sobre avaliações de clientes de um e-commerce brasileiro
+em parâmetros de busca semântica sobre o texto das avaliações.
+- consulta: frase curta com as palavras que um cliente usaria numa avaliação sobre o assunto (por exemplo,
+  "demora na entrega" ou "produto veio diferente da foto"), sem palavras de pergunta. Se a pergunta não tem relação
+  com compras, entregas, produtos, lojas ou atendimento, devolva a própria pergunta, sem adaptá-la.
+- filtro: "negativo" se a pergunta busca reclamações, problemas ou insatisfação; "positivo" se busca elogios ou
+  satisfação; "todas" se é neutra ou mistura os dois sentidos.
+- frequencia: true se a pergunta pede o que é mais comum, principal, recorrente ou um padrão; false caso contrário."""
+
+
 class Tema(BaseModel):
     tema: str
     resumo: str
     evidencias: list[int]
+
+
+class ConsultaReescrita(BaseModel):
+    consulta: str
+    filtro: Literal["negativo", "positivo", "todas"]
+    frequencia: bool
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +69,26 @@ def carregar_cliente() -> tuple[genai.Client, str]:
             "Copie .env.example para .env e preencha com a chave do Google AI Studio."
         )
     return genai.Client(api_key=chave), modelo
+
+
+def chave_configurada() -> bool:
+    load_dotenv(ARQUIVO_ENV)
+    return bool(os.getenv("GEMINI_API_KEY", "").strip() and os.getenv("GEMINI_MODEL", "").strip())
+
+
+def reescrever_pergunta(pergunta: str) -> ConsultaReescrita:
+    """Uma única tentativa, sem nova chamada em erro: quem chama volta para as regras e não gasta mais cota."""
+    cliente, modelo = carregar_cliente()
+    configuracao = types.GenerateContentConfig(
+        system_instruction=INSTRUCAO_REESCRITA,
+        temperature=0,
+        response_mime_type="application/json",
+        response_schema=ConsultaReescrita,
+    )
+    resposta = cliente.models.generate_content(model=modelo, contents=pergunta, config=configuracao)
+    if resposta.parsed is None:
+        raise ValueError(f"Resposta do modelo fora do formato de consulta: {resposta.text[:200]}")
+    return resposta.parsed
 
 
 def gerar_resposta(pergunta: str, contexto: str) -> str:

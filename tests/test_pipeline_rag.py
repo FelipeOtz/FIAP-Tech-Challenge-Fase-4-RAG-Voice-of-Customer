@@ -4,9 +4,10 @@
 """
 
 import unittest
+from unittest.mock import patch
 
-from src.llm import Tema
-from src.pipeline_rag import analisar_pergunta, deduplicar, resumir_temas, transformar_pergunta
+from src.llm import ConsultaReescrita, Tema
+from src.pipeline_rag import analisar_com_llm, analisar_pergunta, deduplicar, resumir_temas, transformar_pergunta
 
 
 def avaliacao(id_: str, texto: str) -> dict:
@@ -56,6 +57,25 @@ class TestPipeline(unittest.TestCase):
         self.assertLess(texto.index("Atraso (2 avaliações)"), texto.index("Não entrega (1 avaliação)"))
         self.assertIn("[E1]", texto)
         self.assertNotIn("E99", texto)
+
+    def test_reescrita_volta_para_regras_sem_chave_ou_em_falha(self) -> None:
+        pergunta = "Clientes insatisfeitos com a entrega"
+        with patch("src.pipeline_rag.chave_configurada", return_value=False):
+            self.assertEqual(analisar_com_llm(pergunta)["origem"], "regras")
+        with patch("src.pipeline_rag.chave_configurada", return_value=True), \
+                patch("src.pipeline_rag.reescrever_pergunta", side_effect=RuntimeError("cota")):
+            self.assertEqual(analisar_com_llm(pergunta), analisar_pergunta(pergunta))
+
+    def test_reescrita_respeita_filtro_manual(self) -> None:
+        reescrita = ConsultaReescrita(consulta="demora na entrega", filtro="negativo", frequencia=True)
+        with patch("src.pipeline_rag.chave_configurada", return_value=True), \
+                patch("src.pipeline_rag.reescrever_pergunta", return_value=reescrita):
+            automatico = analisar_com_llm("Do que mais reclamam?")
+            manual = analisar_com_llm("Do que mais reclamam?", "Todas as notas")
+        self.assertEqual((automatico["consulta"], automatico["filtro"], automatico["top_k"]),
+                         ("demora na entrega", {"review_score": {"$lte": 2}}, 80))
+        self.assertIsNone(manual["filtro"])
+        self.assertEqual(manual["origem"], "llm")
 
 
 if __name__ == "__main__":
